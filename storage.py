@@ -85,7 +85,10 @@ class StockDaily(Base):
     
     # 数据来源
     data_source = Column(String(50))  # 记录数据来源（如 AkshareFetcher）
-    
+
+    # 市场类型
+    market = Column(String(10), default="US")  # 市场：US 或 CN
+
     # 更新时间
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
@@ -116,6 +119,7 @@ class StockDaily(Base):
             'ma20': self.ma20,
             'volume_ratio': self.volume_ratio,
             'data_source': self.data_source,
+            'market': self.market,
         }
 
 
@@ -315,7 +319,11 @@ class DatabaseManager:
             return 0
         
         saved_count = 0
-        
+
+        # 获取配置中的市场类型
+        config = get_config()
+        market_type = config.market
+
         with self.get_session() as session:
             try:
                 for _, row in df.iterrows():
@@ -327,7 +335,7 @@ class DatabaseManager:
                         row_date = row_date.date()
                     elif isinstance(row_date, pd.Timestamp):
                         row_date = row_date.date()
-                    
+
                     # 检查是否已存在
                     existing = session.execute(
                         select(StockDaily).where(
@@ -337,7 +345,7 @@ class DatabaseManager:
                             )
                         )
                     ).scalar_one_or_none()
-                    
+
                     if existing:
                         # 更新现有记录
                         existing.open = row.get('open')
@@ -352,6 +360,7 @@ class DatabaseManager:
                         existing.ma20 = row.get('ma20')
                         existing.volume_ratio = row.get('volume_ratio')
                         existing.data_source = data_source
+                        existing.market = market_type
                         existing.updated_at = datetime.now()
                     else:
                         # 创建新记录
@@ -370,6 +379,7 @@ class DatabaseManager:
                             ma20=row.get('ma20'),
                             volume_ratio=row.get('volume_ratio'),
                             data_source=data_source,
+                            market=market_type,
                         )
                         session.add(record)
                         saved_count += 1

@@ -24,12 +24,14 @@ from tenacity import (
     before_sleep_log,
 )
 
+import yfinance as yf
+
 from config import get_config
 
 logger = logging.getLogger(__name__)
 
 
-# 股票名称映射（常见股票）
+# 股票名称映射（常见A股）
 STOCK_NAME_MAP = {
     '600519': '贵州茅台',
     '000001': '平安银行',
@@ -47,6 +49,47 @@ STOCK_NAME_MAP = {
     '601166': '兴业银行',
     '600028': '中国石化',
 }
+
+
+def get_stock_name(stock_code: str) -> str:
+    """
+    获取股票名称，支持美股和A股
+
+    Args:
+        stock_code: 股票代码
+
+    Returns:
+        股票名称，如果无法获取则返回股票代码
+    """
+    config = get_config()
+
+    # 首先检查硬编码映射（用于A股）
+    if stock_code in STOCK_NAME_MAP:
+        return STOCK_NAME_MAP[stock_code]
+
+    # 尝试从 yfinance 获取
+    try:
+        # 对于A股，需要添加后缀（.SS 或 .SZ）
+        # 对于美股，直接使用代码
+        if config.market == "US":
+            ticker_symbol = stock_code
+        else:
+            # 简单判断：6开头为上海，其他为深圳
+            suffix = ".SS" if stock_code.startswith("6") else ".SZ"
+            ticker_symbol = f"{stock_code}{suffix}"
+
+        ticker = yf.Ticker(ticker_symbol)
+        info = ticker.info
+
+        # 尝试获取名称
+        name = info.get('shortName') or info.get('longName')
+        if name:
+            return name
+    except Exception as e:
+        logger.debug(f"无法从 yfinance 获取股票 {stock_code} 的名称: {e}")
+
+    # 如果所有方法都失败，返回代码本身
+    return stock_code
 
 
 @dataclass
@@ -207,8 +250,8 @@ class GeminiAnalyzer:
     # 输出格式升级：从简单信号升级为决策仪表盘
     # 核心模块：核心结论 + 数据透视 + 舆情情报 + 作战计划
     # ========================================
-    
-    SYSTEM_PROMPT = """你是一位专注于趋势交易的 A 股投资分析师，负责生成专业的【决策仪表盘】分析报告。
+
+    SYSTEM_PROMPT_TEMPLATE = """你是一位专注于趋势交易的{market_context}投资分析师，负责生成专业的【决策仪表盘】分析报告。
 
 ## 核心交易理念（必须严格遵守）
 
@@ -226,6 +269,7 @@ class GeminiAnalyzer:
 - 趋势强度判断：看均线间距是否在扩大
 
 ### 3. 效率优先（筹码结构）
+{chip_note}
 - 关注筹码集中度：90%集中度 < 15% 表示筹码集中
 - 获利比例分析：70-90% 获利盘时需警惕获利回吐
 - 平均成本与现价关系：现价高于平均成本 5-15% 为健康
@@ -290,7 +334,8 @@ class GeminiAnalyzer:
                 "profit_ratio": 获利比例,
                 "avg_cost": 平均成本,
                 "concentration": 筹码集中度,
-                "chip_health": "健康/一般/警惕"
+                "chip_health": "健康/一般/警惕",
+                "note": "{chip_data_note}"
             }
         },
         
@@ -385,9 +430,9 @@ class GeminiAnalyzer:
     def __init__(self, api_key: Optional[str] = None):
         """
         初始化 AI 分析器
-        
+
         优先级：Gemini > OpenAI 兼容 API
-        
+
         Args:
             api_key: Gemini API Key（可选，默认从配置读取）
         """
@@ -398,10 +443,13 @@ class GeminiAnalyzer:
         self._using_fallback = False  # 是否正在使用备选模型
         self._use_openai = False  # 是否使用 OpenAI 兼容 API
         self._openai_client = None  # OpenAI 客户端
-        
+
+        # 构建适合市场的系统提示词
+        self.SYSTEM_PROMPT = self._build_system_prompt(config.market)
+
         # 检查 Gemini API Key 是否有效（过滤占位符）
         gemini_key_valid = self._api_key and not self._api_key.startswith('your_') and len(self._api_key) > 10
-        
+
         # 优先尝试初始化 Gemini
         if gemini_key_valid:
             try:
@@ -413,10 +461,37 @@ class GeminiAnalyzer:
             # Gemini Key 未配置，尝试 OpenAI
             logger.info("Gemini API Key 未配置，尝试使用 OpenAI 兼容 API")
             self._init_openai_fallback()
-        
+
         # 两者都未配置
         if not self._model and not self._openai_client:
             logger.warning("未配置任何 AI API Key，AI 分析功能将不可用")
+
+    def _build_system_prompt(self, market: str) -> str:
+        """
+        根据市场类型构建系统提示词
+
+        Args:
+            market: 市场类型 ("CN" 或 "US")
+
+        Returns:
+            完整的系统提示词
+        """
+        # 市场上下文
+        market_context = "A股" if market == "CN" else "美股"
+
+        # 筹码分布说明
+        if market == "US":
+            chip_note = "**注意**：筹码分布数据不适用于美股市场，请主要依据技术面和基本面分析。"
+            chip_data_note = "筹码数据不适用于美股"
+        else:
+            chip_note = ""
+            chip_data_note = ""
+
+        # 使用 replace 而不是 format，避免 JSON 中的花括号被误解析
+        return (self.SYSTEM_PROMPT_TEMPLATE
+            .replace("{market_context}", market_context)
+            .replace("{chip_note}", chip_note)
+            .replace("{chip_data_note}", chip_data_note))
     
     def _init_openai_fallback(self) -> None:
         """
@@ -727,8 +802,8 @@ class GeminiAnalyzer:
             if 'realtime' in context and context['realtime'].get('name'):
                 name = context['realtime']['name']
             else:
-                # 最后从映射表获取
-                name = STOCK_NAME_MAP.get(code, f'股票{code}')
+                # 使用通用的股票名称获取函数（支持多市场）
+                name = get_stock_name(code)
         
         # 如果模型不可用，返回默认结果
         if not self.is_available():
@@ -831,8 +906,8 @@ class GeminiAnalyzer:
         
         # 优先使用上下文中的股票名称（从 realtime_quote 获取）
         stock_name = context.get('stock_name', name)
-        if not stock_name or stock_name == f'股票{code}':
-            stock_name = STOCK_NAME_MAP.get(code, f'股票{code}')
+        if not stock_name or stock_name == f'股票{code}' or stock_name == code:
+            stock_name = get_stock_name(code)
             
         today = context.get('today', {})
         

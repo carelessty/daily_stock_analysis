@@ -78,7 +78,7 @@ class MarketOverview:
 class MarketAnalyzer:
     """
     大盘复盘分析器
-    
+
     功能：
     1. 获取大盘指数实时行情
     2. 获取市场涨跌统计
@@ -86,9 +86,9 @@ class MarketAnalyzer:
     4. 搜索市场新闻
     5. 生成大盘复盘报告
     """
-    
-    # 主要指数代码
-    MAIN_INDICES = {
+
+    # 中国市场主要指数代码
+    CN_INDICES = {
         'sh000001': '上证指数',
         'sz399001': '深证成指',
         'sz399006': '创业板指',
@@ -96,11 +96,19 @@ class MarketAnalyzer:
         'sh000016': '上证50',
         'sh000300': '沪深300',
     }
+
+    # 美国市场主要指数代码
+    US_INDICES = {
+        '^GSPC': 'S&P 500',
+        '^IXIC': 'Nasdaq综合指数',
+        '^DJI': '道琼斯工业指数',
+        '^RUT': '罗素2000',
+    }
     
     def __init__(self, search_service: Optional[SearchService] = None, analyzer=None):
         """
         初始化大盘分析器
-        
+
         Args:
             search_service: 搜索服务实例
             analyzer: AI分析器实例（用于调用LLM）
@@ -108,6 +116,9 @@ class MarketAnalyzer:
         self.config = get_config()
         self.search_service = search_service
         self.analyzer = analyzer
+
+        # 根据市场类型选择指数
+        self.INDICES = self.US_INDICES if self.config.market == "US" else self.CN_INDICES
         
     def get_market_overview(self) -> MarketOverview:
         """
@@ -155,9 +166,9 @@ class MarketAnalyzer:
             
             # 使用 akshare 获取指数行情（新浪财经接口，包含深市指数）
             df = self._call_akshare_with_retry(ak.stock_zh_index_spot_sina, "指数行情", attempts=2)
-            
+
             if df is not None and not df.empty:
-                for code, name in self.MAIN_INDICES.items():
+                for code, name in self.INDICES.items():
                     # 查找对应指数
                     row = df[df['代码'] == code]
                     if row.empty:

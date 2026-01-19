@@ -28,6 +28,13 @@ from tenacity import (
 )
 
 from .base import BaseFetcher, DataFetchError, STANDARD_COLUMNS
+from config import get_config
+
+# Import ChipDistribution from akshare_fetcher (only defined there)
+try:
+    from .akshare_fetcher import ChipDistribution
+except ImportError:
+    ChipDistribution = None
 
 logger = logging.getLogger(__name__)
 
@@ -59,27 +66,35 @@ class YfinanceFetcher(BaseFetcher):
     
     def _convert_stock_code(self, stock_code: str) -> str:
         """
-        转换股票代码为 Yahoo Finance 格式
-        
-        Yahoo Finance A 股代码格式：
-        - 沪市：600519.SS (Shanghai Stock Exchange)
-        - 深市：000001.SZ (Shenzhen Stock Exchange)
-        
+        转换股票代码为 Yahoo Finance 格式（市场感知）
+
+        市场转换规则：
+        - US市场：直接使用股票代码（AAPL, TSLA 等无需后缀）
+        - CN市场（A股）：
+          - 沪市：600519.SS (Shanghai Stock Exchange)
+          - 深市：000001.SZ (Shenzhen Stock Exchange)
+
         Args:
-            stock_code: 原始代码，如 '600519', '000001'
-            
+            stock_code: 原始代码，如 '600519', '000001', 'AAPL'
+
         Returns:
-            Yahoo Finance 格式代码，如 '600519.SS', '000001.SZ'
+            Yahoo Finance 格式代码，如 '600519.SS', '000001.SZ', 'AAPL'
         """
+        config = get_config()
         code = stock_code.strip()
-        
+
+        # US市场：直接使用股票代码，无需后缀
+        if config.market == "US":
+            return code.upper()
+
+        # CN市场（A股）：需要添加交易所后缀
         # 已经包含后缀的情况
         if '.SS' in code.upper() or '.SZ' in code.upper():
             return code.upper()
-        
+
         # 去除可能的后缀
         code = code.replace('.SH', '').replace('.sh', '')
-        
+
         # 根据代码前缀判断市场
         if code.startswith(('600', '601', '603', '688')):
             return f"{code}.SS"
@@ -136,15 +151,23 @@ class YfinanceFetcher(BaseFetcher):
     def _normalize_data(self, df: pd.DataFrame, stock_code: str) -> pd.DataFrame:
         """
         标准化 Yahoo Finance 数据
-        
+
         yfinance 返回的列名：
         Open, High, Low, Close, Volume（索引是日期）
-        
+
+        注意：yfinance 1.0+ 返回 MultiIndex 列名如 ('Close', 'AAPL')
+        需要先展平列名再进行标准化
+
         需要映射到标准列名：
         date, open, high, low, close, volume, amount, pct_chg
         """
         df = df.copy()
-        
+
+        # 处理 yfinance 1.0+ 的 MultiIndex 列名
+        # 例如：('Close', 'AAPL') -> 'Close'
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+
         # 重置索引，将日期从索引变为列
         df = df.reset_index()
         
@@ -179,8 +202,35 @@ class YfinanceFetcher(BaseFetcher):
         keep_cols = ['code'] + STANDARD_COLUMNS
         existing_cols = [col for col in keep_cols if col in df.columns]
         df = df[existing_cols]
-        
+
         return df
+
+    def get_chip_distribution(self, stock_code: str) -> Optional['ChipDistribution']:
+        """
+        获取筹码分布数据（市场感知）
+
+        注意：
+        - US市场：Yahoo Finance 不提供筹码分布数据，直接返回 None
+        - CN市场：Yahoo Finance 也不提供筹码分布数据，返回 None
+
+        筹码分布是 A 股特有的概念，需要使用其他数据源（如 AkshareFetcher）
+
+        Args:
+            stock_code: 股票代码
+
+        Returns:
+            None（Yahoo Finance 不支持筹码分布数据）
+        """
+        config = get_config()
+
+        # US 市场不支持筹码分布
+        if config.market == "US":
+            logger.debug(f"[市场限制] US 市场不支持筹码分布数据，跳过 {stock_code}")
+            return None
+
+        # CN 市场的 Yahoo Finance 也不提供筹码分布数据
+        logger.debug(f"[数据源限制] Yahoo Finance 不支持筹码分布数据，跳过 {stock_code}")
+        return None
 
 
 if __name__ == "__main__":

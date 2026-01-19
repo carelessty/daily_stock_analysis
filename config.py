@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-A股自选股智能分析系统 - 配置管理模块
+股票智能分析系统 - 配置管理模块
 ===================================
+
+支持市场：US（美股）、CN（A股）
 
 职责：
 1. 使用单例模式管理全局配置
@@ -28,6 +30,9 @@ class Config:
     - 类方法 get_instance() 实现单例访问
     """
     
+    # === 市场配置 ===
+    market: str = "US"  # 市场选择：US（美股）或 CN（A股）
+
     # === 自选股配置 ===
     stock_list: List[str] = field(default_factory=list)
 
@@ -128,7 +133,25 @@ class Config:
     
     # 单例实例存储
     _instance: Optional['Config'] = None
-    
+
+    def is_valid_stock_code(self, code: str) -> bool:
+        """
+        验证股票代码格式
+
+        Args:
+            code: 股票代码
+
+        Returns:
+            是否为有效的股票代码
+        """
+        if self.market == "US":
+            # US: 1-5 uppercase letters, optional suffix like .US
+            base = code.split('.')[0]
+            return base.isupper() and 1 <= len(base) <= 5 and base.isalpha()
+        else:  # CN
+            # CN: 6 digits
+            return code.isdigit() and len(code) == 6
+
     @classmethod
     def get_instance(cls) -> 'Config':
         """
@@ -147,7 +170,7 @@ class Config:
     def _load_from_env(cls) -> 'Config':
         """
         从 .env 文件加载配置
-        
+
         加载优先级：
         1. 系统环境变量
         2. .env 文件
@@ -156,18 +179,24 @@ class Config:
         # 加载项目根目录下的 .env 文件
         env_path = Path(__file__).parent / '.env'
         load_dotenv(dotenv_path=env_path)
-        
+
+        # 读取市场配置
+        market = os.getenv('MARKET', 'US').upper()
+
         # 解析自选股列表（逗号分隔）
         stock_list_str = os.getenv('STOCK_LIST', '')
         stock_list = [
-            code.strip() 
-            for code in stock_list_str.split(',') 
+            code.strip()
+            for code in stock_list_str.split(',')
             if code.strip()
         ]
-        
-        # 如果没有配置，使用默认的示例股票
+
+        # 如果没有配置，根据市场使用默认的示例股票
         if not stock_list:
-            stock_list = ['600519', '000001', '300750']
+            if market == "US":
+                stock_list = ['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'TSLA']
+            else:  # CN
+                stock_list = ['600519', '000001', '300750']
         
         # 解析搜索引擎 API Keys（支持多个 key，逗号分隔）
         bocha_keys_str = os.getenv('BOCHA_API_KEYS', '')
@@ -178,8 +207,9 @@ class Config:
         
         serpapi_keys_str = os.getenv('SERPAPI_API_KEYS', '')
         serpapi_keys = [k.strip() for k in serpapi_keys_str.split(',') if k.strip()]
-        
+
         return cls(
+            market=market,
             stock_list=stock_list,
             feishu_app_id=os.getenv('FEISHU_APP_ID'),
             feishu_app_secret=os.getenv('FEISHU_APP_SECRET'),
@@ -232,7 +262,7 @@ class Config:
     def refresh_stock_list(self) -> None:
         """
         热读取 STOCK_LIST 环境变量并更新配置中的自选股列表
-        
+
         支持两种配置方式：
         1. .env 文件（本地开发、定时任务模式） - 修改后下次执行自动生效
         2. 系统环境变量（GitHub Actions、Docker） - 启动时固定，运行中不变
@@ -253,37 +283,52 @@ class Config:
             if code.strip()
         ]
 
-        if not stock_list:        
-            stock_list = ['000001']
+        # 如果没有配置，根据市场使用默认股票
+        if not stock_list:
+            if self.market == "US":
+                stock_list = ['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'TSLA']
+            else:  # CN
+                stock_list = ['600519', '000001', '300750']
 
         self.stock_list = stock_list
     
     def validate(self) -> List[str]:
         """
         验证配置完整性
-        
+
         Returns:
             缺失或无效配置项的警告列表
         """
         warnings = []
-        
+
+        # 验证市场配置
+        if self.market not in ["US", "CN"]:
+            warnings.append(f"警告：无效的市场配置 '{self.market}'，仅支持 US 或 CN")
+
         if not self.stock_list:
             warnings.append("警告：未配置自选股列表 (STOCK_LIST)")
-        
+        else:
+            # 验证股票代码格式
+            invalid_codes = [code for code in self.stock_list if not self.is_valid_stock_code(code)]
+            if invalid_codes:
+                warnings.append(
+                    f"警告：以下股票代码格式不符合 {self.market} 市场规范: {', '.join(invalid_codes)}"
+                )
+
         if not self.tushare_token:
             warnings.append("提示：未配置 Tushare Token，将使用其他数据源")
-        
+
         if not self.gemini_api_key and not self.openai_api_key:
             warnings.append("警告：未配置 Gemini 或 OpenAI API Key，AI 分析功能将不可用")
         elif not self.gemini_api_key:
             warnings.append("提示：未配置 Gemini API Key，将使用 OpenAI 兼容 API")
-        
+
         if not self.bocha_api_keys and not self.tavily_api_keys and not self.serpapi_keys:
             warnings.append("提示：未配置搜索引擎 API Key (Bocha/Tavily/SerpAPI)，新闻搜索功能将不可用")
-        
+
         # 检查通知配置
         has_notification = (
-            self.wechat_webhook_url or 
+            self.wechat_webhook_url or
             self.feishu_webhook_url or
             (self.telegram_bot_token and self.telegram_chat_id) or
             (self.email_sender and self.email_password) or
@@ -291,7 +336,7 @@ class Config:
         )
         if not has_notification:
             warnings.append("提示：未配置通知渠道，将不发送推送通知")
-        
+
         return warnings
     
     def get_db_url(self) -> str:

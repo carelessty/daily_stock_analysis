@@ -1,4 +1,4 @@
-# 📈 A股智能分析系统
+# 📈 股票智能分析系统（支持美股/A股）
 
 [![GitHub stars](https://img.shields.io/github/stars/ZhuLinsen/daily_stock_analysis?style=social)](https://github.com/ZhuLinsen/daily_stock_analysis/stargazers)
 [![CI](https://github.com/ZhuLinsen/daily_stock_analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/ZhuLinsen/daily_stock_analysis/actions/workflows/ci.yml)
@@ -6,7 +6,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-Ready-2088FF?logo=github-actions&logoColor=white)](https://github.com/features/actions)
 
-> 🤖 基于 AI 大模型的 A/H 股自选股智能分析系统，每日自动分析并推送「决策仪表盘」到企业微信/飞书/Telegram/邮箱
+> 🤖 基于 AI 大模型的股票智能分析系统，支持美股/A股/港股，每日自动分析并推送「决策仪表盘」到企业微信/飞书/Telegram/邮箱
 
 ![运行效果演示](./sources/all_2026-01-13_221547.gif)
 
@@ -82,7 +82,8 @@
 
 | Secret 名称 | 说明 | 必填 |
 |------------|------|:----:|
-| `STOCK_LIST` | 自选股代码，如 `600519,300750,002594` | ✅ |
+| `MARKET` | 市场选择：`US`（美股，默认）或 `CN`（A股） | 可选 |
+| `STOCK_LIST` | 自选股代码，美股如 `AAPL,MSFT,NVDA`，A股如 `600519,300750,002594` | ✅ |
 | `TAVILY_API_KEYS` | [Tavily](https://tavily.com/) 搜索 API（新闻搜索） | 推荐 |
 | `BOCHA_API_KEYS` | [博查搜索](https://open.bocha.cn/) Web Search API（中文搜索优化，支持AI摘要，多个key用逗号分隔） | 可选 |
 | `SERPAPI_API_KEYS` | [SerpAPI](https://serpapi.com/) 备用搜索 | 可选 |
@@ -148,6 +149,30 @@
 
 > 📖 完整环境变量、定时任务配置请参考 [完整配置指南](docs/full-guide.md)
 
+## 🌍 市场选择
+
+通过 `MARKET` 环境变量选择市场：
+- `MARKET=US` - 美股市场（默认）
+- `MARKET=CN` - A股市场
+
+**美股示例：**
+```bash
+MARKET=US
+STOCK_LIST=AAPL,MSFT,GOOGL,NVDA,TSLA
+```
+
+**A股示例：**
+```bash
+MARKET=CN
+STOCK_LIST=600519,000001,300750
+```
+
+**注意事项：**
+- 默认为美股市场（`MARKET=US`），无需额外配置
+- A股分析时会使用中文优化的搜索和分析提示词
+- 美股分析时会使用英文搜索和国际化的分析视角
+- 港股代码（如 00700.HK）请使用 A股模式（`MARKET=CN`）
+
 ## 🖥️ 本地 WebUI（可选）
 
 本地运行时，可启用简易 WebUI 来方便查看/修改 `.env` 里的自选股列表。
@@ -207,9 +232,9 @@ daily_stock_analysis/
 - [x] 定时推送
 - [x] GitHub Actions
 - [x] 港股支持
+- [x] 美股支持
 - [x] Web 管理界面 (简易版)
 - [ ] 历史分析回测
-- [ ] 美股支持
 
 ## 🤝 贡献
 

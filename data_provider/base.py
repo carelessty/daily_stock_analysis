@@ -30,6 +30,8 @@ from tenacity import (
     retry_if_exception_type,
 )
 
+from config import get_config
+
 # 配置日志
 logger = logging.getLogger(__name__)
 
@@ -258,34 +260,47 @@ class DataFetcherManager:
     
     def _init_default_fetchers(self) -> None:
         """
-        初始化默认数据源列表
-        
-        按优先级排序：
-        0. EfinanceFetcher (Priority 0) - 最高优先级
-        1. AkshareFetcher (Priority 1)
-        2. TushareFetcher (Priority 2)
-        3. BaostockFetcher (Priority 3)
-        4. YfinanceFetcher (Priority 4)
+        初始化默认数据源列表（市场感知）
+
+        US 市场：
+        - YfinanceFetcher (Priority 0) - 唯一可靠的美股数据源
+
+        CN 市场（按优先级排序）：
+        - EfinanceFetcher (Priority 0) - 最高优先级
+        - AkshareFetcher (Priority 1)
+        - TushareFetcher (Priority 2)
+        - BaostockFetcher (Priority 3)
+        - YfinanceFetcher (Priority 4)
         """
-        from .efinance_fetcher import EfinanceFetcher
-        from .akshare_fetcher import AkshareFetcher
-        from .tushare_fetcher import TushareFetcher
-        from .baostock_fetcher import BaostockFetcher
-        from .yfinance_fetcher import YfinanceFetcher
-        
-        self._fetchers = [
-            EfinanceFetcher(),   # 最高优先级
-            AkshareFetcher(),
-            TushareFetcher(),
-            BaostockFetcher(),
-            YfinanceFetcher(),
-        ]
-        
-        # 按优先级排序
-        self._fetchers.sort(key=lambda f: f.priority)
-        
-        logger.info(f"已初始化 {len(self._fetchers)} 个数据源: " + 
-                   ", ".join([f.name for f in self._fetchers]))
+        config = get_config()
+
+        if config.market == "US":
+            # US market: only YfinanceFetcher works reliably
+            from .yfinance_fetcher import YfinanceFetcher
+            self._fetchers = [YfinanceFetcher()]
+            logger.info(f"US 市场模式：已初始化 {len(self._fetchers)} 个数据源: " +
+                       ", ".join([f.name for f in self._fetchers]))
+        else:
+            # CN market: use all fetchers with failover
+            from .efinance_fetcher import EfinanceFetcher
+            from .akshare_fetcher import AkshareFetcher
+            from .tushare_fetcher import TushareFetcher
+            from .baostock_fetcher import BaostockFetcher
+            from .yfinance_fetcher import YfinanceFetcher
+
+            self._fetchers = [
+                EfinanceFetcher(),   # 最高优先级
+                AkshareFetcher(),
+                TushareFetcher(),
+                BaostockFetcher(),
+                YfinanceFetcher(),
+            ]
+
+            # 按优先级排序
+            self._fetchers.sort(key=lambda f: f.priority)
+
+            logger.info(f"CN 市场模式：已初始化 {len(self._fetchers)} 个数据源: " +
+                       ", ".join([f.name for f in self._fetchers]))
     
     def add_fetcher(self, fetcher: BaseFetcher) -> None:
         """添加数据源并重新排序"""

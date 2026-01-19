@@ -21,6 +21,8 @@ import threading
 from datetime import datetime
 from typing import Callable, Optional
 
+from config import get_config
+
 logger = logging.getLogger(__name__)
 
 
@@ -66,9 +68,12 @@ class Scheduler:
     def __init__(self, schedule_time: str = "18:00"):
         """
         初始化调度器
-        
+
         Args:
             schedule_time: 每日执行时间，格式 "HH:MM"
+                          默认 18:00 适配市场收盘后分析：
+                          - US 市场: 18:00 ET (美东时间下午 4 点收盘后)
+                          - CN 市场: 18:00 北京时间 (下午 3 点收盘后)
         """
         try:
             import schedule
@@ -76,65 +81,75 @@ class Scheduler:
         except ImportError:
             logger.error("schedule 库未安装，请执行: pip install schedule")
             raise ImportError("请安装 schedule 库: pip install schedule")
-        
+
         self.schedule_time = schedule_time
         self.shutdown_handler = GracefulShutdown()
         self._task_callback: Optional[Callable] = None
         self._running = False
+
+        # 获取市场配置信息
+        try:
+            config = get_config()
+            self.market_type = config.market
+        except Exception:
+            self.market_type = "CN"  # 默认中国市场
         
     def set_daily_task(self, task: Callable, run_immediately: bool = True):
         """
         设置每日定时任务
-        
+
         Args:
             task: 要执行的任务函数（无参数）
             run_immediately: 是否在设置后立即执行一次
         """
         self._task_callback = task
-        
+
         # 设置每日定时任务
         self.schedule.every().day.at(self.schedule_time).do(self._safe_run_task)
-        logger.info(f"已设置每日定时任务，执行时间: {self.schedule_time}")
-        
+        market_name = "美股" if self.market_type == "US" else "A股"
+        logger.info(f"已设置每日定时任务 [{market_name}分析]，执行时间: {self.schedule_time}")
+
         if run_immediately:
-            logger.info("立即执行一次任务...")
+            logger.info(f"立即执行一次任务 [{market_name}分析]...")
             self._safe_run_task()
     
     def _safe_run_task(self):
         """安全执行任务（带异常捕获）"""
         if self._task_callback is None:
             return
-        
+
         try:
+            market_name = "美股" if self.market_type == "US" else "A股"
             logger.info("=" * 50)
-            logger.info(f"定时任务开始执行 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            logger.info(f"定时任务开始执行 [{market_name}分析] - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             logger.info("=" * 50)
-            
+
             self._task_callback()
-            
-            logger.info(f"定时任务执行完成 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            
+
+            logger.info(f"定时任务执行完成 [{market_name}分析] - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
         except Exception as e:
             logger.exception(f"定时任务执行失败: {e}")
     
     def run(self):
         """
         运行调度器主循环
-        
+
         阻塞运行，直到收到退出信号
         """
         self._running = True
-        logger.info("调度器开始运行...")
+        market_name = "美股" if self.market_type == "US" else "A股"
+        logger.info(f"调度器开始运行 [{market_name}分析]...")
         logger.info(f"下次执行时间: {self._get_next_run_time()}")
-        
+
         while self._running and not self.shutdown_handler.should_shutdown:
             self.schedule.run_pending()
             time.sleep(30)  # 每30秒检查一次
-            
+
             # 每小时打印一次心跳
             if datetime.now().minute == 0 and datetime.now().second < 30:
-                logger.info(f"调度器运行中... 下次执行: {self._get_next_run_time()}")
-        
+                logger.info(f"调度器运行中 [{market_name}分析]... 下次执行: {self._get_next_run_time()}")
+
         logger.info("调度器已停止")
     
     def _get_next_run_time(self) -> str:

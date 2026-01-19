@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 ===================================
-A股自选股智能分析系统 - 主调度程序
+股票智能分析系统 - 主调度程序
 ===================================
+支持市场：US（美股）、CN（A股）
 
 职责：
 1. 协调各模块完成股票分析流程
@@ -650,7 +651,7 @@ class StockAnalysisPipeline:
 def parse_arguments() -> argparse.Namespace:
     """解析命令行参数"""
     parser = argparse.ArgumentParser(
-        description='A股自选股智能分析系统',
+        description='股票智能分析系统（支持美股/A股）',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 示例:
@@ -888,7 +889,8 @@ def main() -> int:
     setup_logging(debug=args.debug, log_dir=config.log_dir)
     
     logger.info("=" * 60)
-    logger.info("A股自选股智能分析系统 启动")
+    market_name = "美股" if config.market == "US" else "A股"
+    logger.info(f"{market_name}智能分析系统 启动")
     logger.info(f"运行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("=" * 60)
     

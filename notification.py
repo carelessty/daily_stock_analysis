@@ -92,6 +92,26 @@ class ChannelDetector:
         return names.get(channel, "未知渠道")
 
 
+def format_stock_code(code: str, name: str = "") -> str:
+    """
+    格式化股票代码显示（市场感知）
+
+    Args:
+        code: 股票代码
+        name: 股票名称（可选）
+
+    Returns:
+        格式化后的股票代码字符串
+        - US市场: $AAPL (Apple Inc.) 或 $AAPL
+        - CN市场: 600519 (贵州茅台) 或 600519
+    """
+    config = get_config()
+    if config.market == "US":
+        return f"${code}" + (f" ({name})" if name else "")
+    else:
+        return code + (f" ({name})" if name else "")
+
+
 class NotificationService:
     """
     通知服务
@@ -279,9 +299,9 @@ class NotificationService:
         for result in sorted_results:
             emoji = result.get_emoji()
             confidence_stars = result.get_confidence_stars() if hasattr(result, 'get_confidence_stars') else '⭐⭐'
-            
+
             report_lines.extend([
-                f"### {emoji} {result.name} ({result.code})",
+                f"### {emoji} {result.name} ({format_stock_code(result.code)})",
                 "",
                 f"**操作建议：{result.operation_advice}** | **综合评分：{result.sentiment_score}分** | **趋势预测：{result.trend_prediction}** | **置信度：{confidence_stars}**",
                 "",
@@ -480,9 +500,9 @@ class NotificationService:
             
             # 股票名称（优先使用 dashboard 或 result 中的名称）
             stock_name = result.name if result.name and not result.name.startswith('股票') else f'股票{result.code}'
-            
+
             report_lines.extend([
-                f"## {signal_emoji} {stock_name} ({result.code})",
+                f"## {signal_emoji} {stock_name} ({format_stock_code(result.code)})",
                 "",
             ])
             
@@ -740,9 +760,9 @@ class NotificationService:
             
             # 股票名称
             stock_name = result.name if result.name and not result.name.startswith('股票') else f'股票{result.code}'
-            
+
             # 标题行：信号等级 + 股票名称
-            lines.append(f"### {signal_emoji} **{signal_text}** | {stock_name}({result.code})")
+            lines.append(f"### {signal_emoji} **{signal_text}** | {stock_name}({format_stock_code(result.code)})")
             lines.append("")
             
             # 核心决策（一句话）
@@ -873,9 +893,9 @@ class NotificationService:
         # 每只股票精简信息（控制长度）
         for result in sorted_results:
             emoji = result.get_emoji()
-            
+
             # 核心信息行
-            lines.append(f"### {emoji} {result.name}({result.code})")
+            lines.append(f"### {emoji} {result.name}({format_stock_code(result.code)})")
             lines.append(f"**{result.operation_advice}** | 评分:{result.sentiment_score} | {result.trend_prediction}")
             
             # 操作理由（截断）
@@ -932,9 +952,9 @@ class NotificationService:
         
         # 股票名称
         stock_name = result.name if result.name and not result.name.startswith('股票') else f'股票{result.code}'
-        
+
         lines = [
-            f"## {signal_emoji} {stock_name} ({result.code})",
+            f"## {signal_emoji} {stock_name} ({format_stock_code(result.code)})",
             "",
             f"> {report_date} | 评分: **{result.sentiment_score}** | {result.trend_prediction}",
             "",
@@ -2484,7 +2504,7 @@ class NotificationBuilder:
         
         for r in sorted(results, key=lambda x: x.sentiment_score, reverse=True):
             emoji = r.get_emoji()
-            lines.append(f"{emoji} {r.name}({r.code}): {r.operation_advice} | 评分 {r.sentiment_score}")
+            lines.append(f"{emoji} {r.name}({format_stock_code(r.code)}): {r.operation_advice} | 评分 {r.sentiment_score}")
         
         return "\n".join(lines)
 
