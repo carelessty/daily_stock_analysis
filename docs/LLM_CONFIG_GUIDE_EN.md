@@ -42,6 +42,15 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
 ```
 *Note: Only this single line is needed. The system will automatically detect and default to the DeepSeek model.*
 
+### Example 2b: Using OpenRouter (hundreds of models)
+```env
+# Fill in your API Key from https://openrouter.ai
+OPENROUTER_API_KEY=sk-or-xxxxxxxxxxxxxxxx
+# Optional: specify a model (default: openai/gpt-4o-mini)
+# OPENROUTER_MODEL=anthropic/claude-3-5-sonnet
+```
+*Note: OpenRouter aggregates GPT, Claude, Gemini, Llama and hundreds more — one key covers all.*
+
 ### Example 3: Using the Free Gemini API
 ```env
 # Fill in your Google Gemini Key

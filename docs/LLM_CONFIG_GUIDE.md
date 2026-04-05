@@ -42,6 +42,15 @@ DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxx
 ```
 *提示：仅需这一行，系统会自动识别并默认使用 DeepSeek 模型。*
 
+### 示例 2b：使用 OpenRouter（支持数百个模型）
+```env
+# 填入你在 https://openrouter.ai 申请的 API Key
+OPENROUTER_API_KEY=sk-or-xxxxxxxxxxxxxxxx
+# 可选：指定模型（默认 openai/gpt-4o-mini）
+# OPENROUTER_MODEL=anthropic/claude-3-5-sonnet
+```
+*提示：OpenRouter 聚合了 GPT、Claude、Gemini、Llama 等数百个模型，一个 Key 即可访问全部。*
+
 ### 示例 3：使用 Gemini 免费 API
 ```env
 # 填入你获取的 Google Gemini Key
