@@ -70,10 +70,12 @@
 |------|------|
 | AI 模型 | [AIHubMix](https://aihubmix.com/?aff=CfMq)、Gemini、OpenAI 兼容、DeepSeek、通义千问、Claude、Ollama 本地模型 等（统一通过 [LiteLLM](https://github.com/BerriAI/litellm) 调用，支持多 Key 负载均衡）|
 | 行情数据 | AkShare、Tushare、Pytdx、Baostock、YFinance、[Longbridge](https://open.longbridge.com/)（美股/港股首选数据源） |
-| 新闻搜索 | Tavily、SerpAPI、Bocha、Brave、MiniMax |
+| 新闻搜索 | Anspire、Tavily、SerpAPI、Bocha、Brave、MiniMax |
 | 社交舆情 | [Stock Sentiment API](https://api.adanos.org/docs)（Reddit / X / Polymarket，仅美股，可选） |
 
 > **长桥优先策略（仅美/港股）**：在配置 `LONGBRIDGE_APP_KEY` / `LONGBRIDGE_APP_SECRET` / `LONGBRIDGE_ACCESS_TOKEN` 的前提下，美股与港股的 **日线 K 线** 与 **实时行情** 由 **Longbridge 优先拉取**；若长桥失败或部分字段缺失，再由 **YFinance（美股）/ AkShare（港股）** 兜底或合并补全字段。**未配置长桥凭据时不会调用 Longbridge**，美股/港股仍以 YFinance / AkShare 为主数据源（与未集成长桥前的行为一致）。**美股大盘指数**（如 SPX）始终以 YFinance 优先（长桥不提供指数行情）。**A 股**路由不变，仍为 Efinance → AkShare → Tushare → Pytdx → Baostock。详见 `.env.example` 与 [完整指南](docs/full-guide.md) 中长桥说明。
+
+> **tushare增加港股查询能力**：在配置`TUSHARE_TOKEN` 的前提下，并且具有港股日线查询权限时，用户在首页输入港股代码后提交查询能够得到正常的分析结果。如果用户不具有港股查询权限时，和未改动前一样会得到错误的信息。
 
 ### 内置交易纪律
 
@@ -155,7 +157,7 @@
 | `RUN_IMMEDIATELY` | 非定时模式启动时是否立即执行一次分析 | 可选 |
 | `SINGLE_STOCK_NOTIFY` | 单股推送模式：设为 `true` 则每分析完一只股票立即推送 | 可选 |
 | `REPORT_TYPE` | 报告类型：`simple`(精简)、`full`(完整)、`brief`(3-5句概括)，Docker环境推荐设为 `full` | 可选 |
-| `REPORT_LANGUAGE` | 报告输出语言：`zh`(默认中文) / `en`(英文)；会同步影响 Prompt、Markdown 模板、通知 fallback 与 Web 报告页固定文案 | 可选 |
+| `REPORT_LANGUAGE` | 报告输出语言：`zh`(默认中文) / `en`(英文)；会同步影响 Prompt、Markdown 模板、通知 fallback 与 Web 报告页固定文案。仓库自带 `daily_analysis.yml` 已显式映射该变量，直接在 Actions Secrets/Variables 中配置即可生效 | 可选 |
 | `REPORT_SUMMARY_ONLY` | 仅分析结果摘要：设为 `true` 时只推送汇总，不含个股详情 | 可选 |
 | `REPORT_TEMPLATES_DIR` | Jinja2 模板目录（相对项目根，默认 `templates`） | 可选 |
 | `REPORT_RENDERER_ENABLED` | 启用 Jinja2 模板渲染（默认 `false`，保证零回归） | 可选 |
@@ -179,6 +181,7 @@
 |------------|------|:----:|
 | `STOCK_LIST` | 自选股代码，如 `600519,hk00700,AAPL,TSLA` | ✅ |
 | `TAVILY_API_KEYS` | [Tavily](https://tavily.com/) 搜索 API（新闻搜索） | 推荐 |
+| `ANSPIRE_API_KEYS` | [Anspire AI Search](https://aisearch.anspire.cn/) 针对中文内容特别优化 (可有效增强A股分析效果) | 可选 |
 | `MINIMAX_API_KEYS` | [MiniMax](https://platform.minimaxi.com/) Coding Plan Web Search（结构化搜索结果） | 可选 |
 | `SERPAPI_API_KEYS` | [SerpAPI](https://serpapi.com/baidu-search-api?utm_source=github_daily_stock_analysis) 全渠道搜索 | 可选 |
 | `BOCHA_API_KEYS` | [博查搜索](https://open.bocha.cn/) Web Search API（中文搜索优化，支持AI摘要，多个key用逗号分隔） | 可选 |
@@ -208,7 +211,7 @@
 | `AGENT_MODE` | 开启 Agent 策略问股模式（内部统一命名为 skill，`true`/`false`，默认 false） | 可选 |
 | `AGENT_LITELLM_MODEL` | Agent 主模型（可选）；留空继承主模型，无前缀会按 `openai/<model>` 解析 | 可选 |
 | `AGENT_SKILLS` | 激活的策略技能 id（逗号分隔），`all` 启用全部策略技能；留空时使用主默认策略 skill（内置默认是 `bull_trend`），详见 `.env.example` | 可选 |
-| `AGENT_MAX_STEPS` | Agent 最大推理步数上限（默认 10）；多 Agent orchestrator 模式下按 `min(子 Agent 默认值, AGENT_MAX_STEPS)` 生效，不会抬高低默认值 Agent 的步数 | 可选 |
+| `AGENT_MAX_STEPS` | Agent 最大推理步数上限（默认 `10`）；保持默认时各子 Agent 按自身预设步数运行；用户主动调高到高于默认值时，所有子 Agent 统一采用该值；若设置值低于某子 Agent 的默认步数，则仍按该值作为上限进行限制 | 可选 |
 | `AGENT_SKILL_DIR` | 自定义策略技能目录（默认沿用内置 `strategies/` 兼容路径） | 可选 |
 | `TRADING_DAY_CHECK_ENABLED` | 交易日检查（默认 `true`）：非交易日跳过执行；设为 `false` 或使用 `--force-run` 强制执行 | 可选 |
 | `ENABLE_CHIP_DISTRIBUTION` | 启用筹码分布（Actions 默认 false；需筹码数据时在 Variables 中设为 true，接口可能不稳定） | 可选 |

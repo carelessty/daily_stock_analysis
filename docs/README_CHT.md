@@ -55,7 +55,7 @@
 |------|------|
 | AI 模型 | Gemini（免費）、OpenAI 兼容、DeepSeek、通義千問、Claude、Ollama |
 | 行情數據 | AkShare、Tushare、Pytdx、Baostock、YFinance、[Longbridge](https://open.longbridge.com/)（美股/港股首選數據源） |
-| 新聞搜索 | Tavily、SerpAPI、Bocha、Brave、MiniMax |
+| 新聞搜索 | Tavily、Anspire、SerpAPI、Bocha、Brave、MiniMax |
 
 > **長橋優先策略（僅美／港股）**：在已設定 `LONGBRIDGE_APP_KEY` / `LONGBRIDGE_APP_SECRET` / `LONGBRIDGE_ACCESS_TOKEN` 的前提下，美股與港股的 **日線** 與 **即時行情** 由 **Longbridge 優先**；長橋失敗或欄位不足時再由 **YFinance／AkShare** 兜底或合併補欄。**未設定長橋憑證時不會呼叫 Longbridge**，美／港股仍以 YFinance／AkShare 為主（與未整合長橋前一致）。**美股大盤指數**始終以 YFinance 優先（長橋不提供指數行情）。**A 股**路由不變。詳見 `.env.example` 與 [完整指南](./full-guide.md)。
 
@@ -134,6 +134,7 @@
 |------------|------|:----:|
 | `STOCK_LIST` | 自選股代碼，如 `600519,hk00700,AAPL,TSLA` | ✅ |
 | `TAVILY_API_KEYS` | [Tavily](https://tavily.com/) 搜索 API（新聞搜索） | 推薦 |
+| `ANSPIRE_API_KEYS` | [Anspire AI Search](https://aisearch.anspire.cn/) 針對中文內容特別優化（可有效增強A股分析效果） | 可選 |
 | `MINIMAX_API_KEYS` | [MiniMax](https://platform.minimaxi.com/) Coding Plan Web Search（結構化搜索結果） | 可選 |
 | `BOCHA_API_KEYS` | [博查搜索](https://open.bocha.cn/) Web Search API（中文搜索優化，支持AI摘要，多個key用逗號分隔） | 可選 |
 | `BRAVE_API_KEYS` | [Brave Search](https://brave.com/search/api/) API（隱私優先，美股優化，多個key用逗號分隔） | 可選 |
@@ -154,7 +155,7 @@
 | `LONGBRIDGE_PRINT_QUOTE_PACKAGES` | 連線時是否列印行情包（未設定時預設 `false`；設為 `1`/`true`/`yes` 開啟） | 可選 |
 | `AGENT_MODE` | 啟用 Agent 策略問股模式（內部統一命名為 skill，`true`/`false`，預設 `false`） | 可選 |
 | `AGENT_LITELLM_MODEL` | Agent 專用主模型（可選）；留空時繼承主模型，無 provider 前綴時按 `openai/<model>` 解析 | 可選 |
-| `AGENT_MAX_STEPS` | Agent 最大推理步數上限（預設 `10`）；多 Agent orchestrator 模式下按 `min(子 Agent 預設值, AGENT_MAX_STEPS)` 生效，不會抬高低預設值 Agent 的步數 | 可選 |
+| `AGENT_MAX_STEPS` | Agent 最大推理步數上限（預設 `10`）；保持預設時各子 Agent 依自身預設步數運行；主動調高到高於預設值時，所有子 Agent 統一採用該值；若設定值低於某子 Agent 的預設步數，則仍按該值作為上限進行限制 | 可選 |
 | `AGENT_SKILLS` | 逗號分隔的策略技能 id。留空時使用 metadata 宣告的主預設策略 skill（內建預設為 `bull_trend`）；使用 `all` 可啟用所有已載入策略技能。 | 可選 |
 | `AGENT_SKILL_DIR` | 自訂策略技能目錄（預設沿用內建 `strategies/` 相容路徑） | 可選 |
 
